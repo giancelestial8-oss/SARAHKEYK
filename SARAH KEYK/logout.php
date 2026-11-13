@@ -9,5 +9,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	}
 	session_destroy();
 }
-header('Location: ' . app_url('index.php'));
+header('Location: ' . app_url('login.php'));
 exit;

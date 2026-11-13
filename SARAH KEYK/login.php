@@ -1,10 +1,11 @@
 <?php
 require_once __DIR__ . '/includes/auth.php';
 
-if (isset($_SESSION['user'])) {
-	header('Location: ' . app_url(is_admin() ? 'admin/dashboard.php' : 'index.php'));
+if (is_admin()) {
+	header('Location: ' . app_url('admin/dashboard.php'));
 	exit;
 }
+unset($_SESSION['user']);
 
 $error = '';
 $username = '';
@@ -21,13 +22,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	mysqli_stmt_close($statement);
 
 	if ($user && password_verify($password, $user['password'])) {
-		session_regenerate_id(true);
-		unset($user['password']);
-		$_SESSION['user'] = $user;
-		header('Location: ' . app_url($user['role'] === 'admin' ? 'admin/dashboard.php' : 'index.php'));
-		exit;
+		if ($user['role'] === 'admin') {
+			session_regenerate_id(true);
+			unset($user['password']);
+			$_SESSION['user'] = $user;
+			header('Location: ' . app_url('admin/dashboard.php'));
+			exit;
+		}
+		$error = 'This account does not have permission to access the inventory.';
+	} else {
+		$error = 'The username or password was not recognized.';
 	}
-	$error = 'The username or password was not recognized.';
 }
 
 $flash = get_flash();
@@ -47,7 +52,6 @@ require __DIR__ . '/includes/header.php';
 			<label>Password<input class="form-control" type="password" name="password" required autocomplete="current-password"></label>
 			<button class="btn btn-rose w-100" type="submit">Log in</button>
 		</form>
-		<p class="auth-switch">New to SarahKeyk? <a href="<?= e(app_url('register.php')) ?>">Create an account</a></p>
 	</div>
 </main>
 <?php require __DIR__ . '/includes/footer.php'; ?>

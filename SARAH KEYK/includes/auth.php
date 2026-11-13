@@ -18,7 +18,7 @@ function app_url(string $path = ''): string
 	return BASE_URL . ($path !== '' ? '/' . ltrim($path, '/') : '/');
 }
 
-require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/db.php';
 
 function e($value): string
 {

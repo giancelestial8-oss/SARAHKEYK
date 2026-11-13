@@ -218,6 +218,14 @@ h3,
     font-size: 12px;
 }
 
+.container {
+    max-width: 1900px;
+    margin-right: auto;
+    margin-left: auto;
+    padding-right: 20px;
+    padding-left: 20px;
+}
+
 .hero-note-icon {
     display: grid;
     place-items: center;
@@ -603,7 +611,7 @@ textarea.form-control {
 
 .admin-content {
     min-width: 0;
-    padding: 43px clamp(22px, 4vw, 58px) 65px;
+    padding: 33px clamp(15px, 4vw, 30px) 35px;
 }
 
 .admin-heading {
@@ -985,17 +993,15 @@ textarea.form-control {
     }
 
     .admin-wrap {
-        display: block;
+        display: grid;
+        grid-template-columns: 145px minmax(0, 1fr);
     }
 
     .admin-sidebar {
-        display: flex;
-        flex-direction: row;
-        overflow-x: auto;
-        gap: 4px;
-        padding: 10px 14px;
-        border-right: 0;
-        border-bottom: 1px solid var(--line);
+        gap: 6px;
+        padding: 20px 9px;
+        border-right: 1px solid var(--line);
+        border-bottom: 0;
     }
 
     .sidebar-label,
@@ -1004,14 +1010,12 @@ textarea.form-control {
     }
 
     .admin-sidebar>a {
-        flex: 0 0 auto;
-        padding: 10px 12px;
+        padding: 10px 8px;
         font-size: 12px;
-        white-space: nowrap;
     }
 
     .admin-content {
-        padding: 28px 16px 45px;
+        padding: 24px 12px 40px;
     }
 
     .admin-heading {
