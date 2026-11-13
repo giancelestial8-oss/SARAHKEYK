@@ -2,8 +2,14 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_admin();
 
-$totalCakes = (int) $pdo->query('SELECT COUNT(*) FROM cakes')->fetchColumn();
-$recentCakes = $pdo->query('SELECT id, cake_name, price, season, date_added FROM cakes ORDER BY date_added DESC, id DESC LIMIT 5')->fetchAll();
+$countResult = mysqli_query($db, 'SELECT COUNT(*) FROM cakes');
+$countRow = mysqli_fetch_row($countResult);
+$totalCakes = (int) $countRow[0];
+mysqli_free_result($countResult);
+
+$recentResult = mysqli_query($db, 'SELECT id, cake_name, price, season, date_added FROM cakes ORDER BY date_added DESC, id DESC LIMIT 5');
+$recentCakes = mysqli_fetch_all($recentResult, MYSQLI_ASSOC);
+mysqli_free_result($recentResult);
 $pageTitle = 'Admin dashboard — SarahKeyk';
 require __DIR__ . '/../includes/header.php';
 ?>

@@ -40,11 +40,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		if ($action === 'delete') {
 			$id = filter_var($_POST['id'] ?? null, FILTER_VALIDATE_INT);
 			if (!$id) throw new RuntimeException('Invalid cake selected.');
-			$statement = $pdo->prepare('SELECT cake_image FROM cakes WHERE id = ?');
-			$statement->execute([$id]);
-			$cake = $statement->fetch();
+			$statement = mysqli_prepare($db, 'SELECT cake_image FROM cakes WHERE id = ?');
+			mysqli_stmt_bind_param($statement, 'i', $id);
+			mysqli_stmt_execute($statement);
+			$result = mysqli_stmt_get_result($statement);
+			$cake = mysqli_fetch_assoc($result);
+			mysqli_free_result($result);
+			mysqli_stmt_close($statement);
 			if (!$cake) throw new RuntimeException('That cake could not be found.');
-			$pdo->prepare('DELETE FROM cakes WHERE id = ?')->execute([$id]);
+			$statement = mysqli_prepare($db, 'DELETE FROM cakes WHERE id = ?');
+			mysqli_stmt_bind_param($statement, 'i', $id);
+			mysqli_stmt_execute($statement);
+			mysqli_stmt_close($statement);
 			remove_cake_image($cake['cake_image']);
 			set_flash('success', 'Cake deleted successfully.');
 		} elseif ($action === 'save') {
@@ -62,19 +69,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			if ($id !== '') {
 				$cakeId = filter_var($id, FILTER_VALIDATE_INT);
 				if (!$cakeId) throw new RuntimeException('Invalid cake selected.');
-				$statement = $pdo->prepare('SELECT cake_image FROM cakes WHERE id = ?');
-				$statement->execute([$cakeId]);
-				$existing = $statement->fetch();
+				$statement = mysqli_prepare($db, 'SELECT cake_image FROM cakes WHERE id = ?');
+				mysqli_stmt_bind_param($statement, 'i', $cakeId);
+				mysqli_stmt_execute($statement);
+				$result = mysqli_stmt_get_result($statement);
+				$existing = mysqli_fetch_assoc($result);
+				mysqli_free_result($result);
+				mysqli_stmt_close($statement);
 				if (!$existing) throw new RuntimeException('That cake could not be found.');
 				if ($newImage) {
-					$pdo->prepare('UPDATE cakes SET cake_name = ?, description = ?, price = ?, season = ?, cake_image = ? WHERE id = ?')->execute([$name, $description, $price, $season, $newImage, $cakeId]);
+					$statement = mysqli_prepare($db, 'UPDATE cakes SET cake_name = ?, description = ?, price = ?, season = ?, cake_image = ? WHERE id = ?');
+					mysqli_stmt_bind_param($statement, 'ssdssi', $name, $description, $price, $season, $newImage, $cakeId);
+					mysqli_stmt_execute($statement);
+					mysqli_stmt_close($statement);
 					remove_cake_image($existing['cake_image']);
 				} else {
-					$pdo->prepare('UPDATE cakes SET cake_name = ?, description = ?, price = ?, season = ? WHERE id = ?')->execute([$name, $description, $price, $season, $cakeId]);
+					$statement = mysqli_prepare($db, 'UPDATE cakes SET cake_name = ?, description = ?, price = ?, season = ? WHERE id = ?');
+					mysqli_stmt_bind_param($statement, 'ssdsi', $name, $description, $price, $season, $cakeId);
+					mysqli_stmt_execute($statement);
+					mysqli_stmt_close($statement);
 				}
 				set_flash('success', 'Cake updated successfully.');
 			} else {
-				$pdo->prepare('INSERT INTO cakes (cake_name, description, price, season, cake_image) VALUES (?, ?, ?, ?, ?)')->execute([$name, $description, $price, $season, $newImage]);
+				$statement = mysqli_prepare($db, 'INSERT INTO cakes (cake_name, description, price, season, cake_image) VALUES (?, ?, ?, ?, ?)');
+				mysqli_stmt_bind_param($statement, 'ssdss', $name, $description, $price, $season, $newImage);
+				mysqli_stmt_execute($statement);
+				mysqli_stmt_close($statement);
 				set_flash('success', 'New cake added successfully.');
 			}
 		} else {
@@ -83,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	} catch (RuntimeException $exception) {
 		if (isset($newImage) && $newImage) remove_cake_image($newImage);
 		set_flash('danger', $exception->getMessage());
-	} catch (PDOException $exception) {
+	} catch (mysqli_sql_exception $exception) {
 		if (isset($newImage) && $newImage) remove_cake_image($newImage);
 		set_flash('danger', 'The cake could not be saved. Please try again.');
 	}
@@ -91,7 +111,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	exit;
 }
 
-$cakes = $pdo->query('SELECT id, cake_name, description, price, season, cake_image, date_added FROM cakes ORDER BY date_added DESC, id DESC')->fetchAll();
+$result = mysqli_query($db, 'SELECT id, cake_name, description, price, season, cake_image, date_added FROM cakes ORDER BY date_added DESC, id DESC');
+$cakeCount = mysqli_num_rows($result);
 $flash = get_flash();
 $pageTitle = 'Manage cakes — SarahKeyk';
 require __DIR__ . '/../includes/header.php';
@@ -106,53 +127,90 @@ require __DIR__ . '/../includes/header.php';
 	</aside>
 	<section class="admin-content">
 		<div class="admin-heading">
-			<div><div class="auth-eyebrow">YOUR CATALOG</div><h1>Cake management</h1><p class="muted-copy">Add, update, and organize the cakes in your shop.</p></div>
+			<div>
+				<div class="auth-eyebrow">YOUR CATALOG</div>
+				<h1>Cake management</h1>
+				<p class="muted-copy">Add, update, and organize the cakes in your shop.</p>
+			</div>
 			<button type="button" class="btn btn-rose" data-bs-toggle="modal" data-bs-target="#cakeModal" data-form-mode="create">＋ Add a cake</button>
 		</div>
 		<?php if ($flash): ?><div class="alert alert-<?= e($flash['type']) ?> alert-dismissible fade show" role="alert"><?= e($flash['message']) ?><button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div><?php endif; ?>
 		<div class="table-card">
-			<div class="table-card-heading"><div><h2>Your cakes</h2><p><?= count($cakes) ?> <?= count($cakes) === 1 ? 'treat' : 'treats' ?> listed</p></div></div>
+			<div class="table-card-heading">
+				<div>
+					<h2>Your cakes</h2>
+					<p><?= $cakeCount ?> <?= $cakeCount === 1 ? 'treat' : 'treats' ?> listed</p>
+				</div>
+			</div>
 			<div class="table-responsive">
 				<table class="table cake-table align-middle mb-0">
-					<thead><tr><th>Cake</th><th>Season</th><th>Price</th><th>Added</th><th class="text-end">Actions</th></tr></thead>
-					<tbody>
-					<?php if (!$cakes): ?><tr><td colspan="5" class="empty-state"><span>♡</span><strong>Your cake case is empty</strong><small>Add your first cake to show it on the storefront.</small></td></tr><?php endif; ?>
-					<?php foreach ($cakes as $cake): ?>
+					<thead>
 						<tr>
-							<td><div class="cake-cell"><img src="<?= e(app_url($cake['cake_image'] ?: 'assets/images/cake-placeholder.svg')) ?>" alt="<?= e($cake['cake_name']) ?>"><div><strong><?= e($cake['cake_name']) ?></strong><small><?= e(mb_strimwidth($cake['description'], 0, 68, '…')) ?></small></div></div></td>
-							<td><span class="season-pill"><?= e($cake['season']) ?></span></td>
-							<td class="price-cell">₱<?= number_format((float) $cake['price'], 2) ?></td>
-							<td class="muted-copy"><?= e(date('M j, Y', strtotime($cake['date_added']))) ?></td>
-							<td><div class="table-actions">
-								<button type="button" class="btn btn-edit btn-sm" data-bs-toggle="modal" data-bs-target="#cakeModal" data-form-mode="edit" data-id="<?= (int) $cake['id'] ?>" data-name="<?= e($cake['cake_name']) ?>" data-description="<?= e($cake['description']) ?>" data-price="<?= e($cake['price']) ?>" data-season="<?= e($cake['season']) ?>">Edit</button>
-								<form method="post" onsubmit="return confirm('Delete this cake? This cannot be undone.');">
-									<input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= (int) $cake['id'] ?>">
-									<button class="btn btn-delete btn-sm" type="submit">Delete</button>
-								</form>
-							</div></td>
+							<th>Cake</th>
+							<th>Season</th>
+							<th>Price</th>
+							<th>Added</th>
+							<th class="text-end">Actions</th>
 						</tr>
-					<?php endforeach; ?>
+					</thead>
+					<tbody>
+						<?php if ($cakeCount > 0): ?>
+							<?php while ($cake = mysqli_fetch_assoc($result)): ?>
+								<tr>
+									<td>
+										<div class="cake-cell"><img src="<?= e(app_url($cake['cake_image'] ?: 'assets/images/cake-placeholder.svg')) ?>" alt="<?= e($cake['cake_name']) ?>">
+											<div><strong><?= e($cake['cake_name']) ?></strong><small><?= e(mb_strimwidth($cake['description'], 0, 68, '…')) ?></small></div>
+										</div>
+									</td>
+									<td><span class="season-pill"><?= e($cake['season']) ?></span></td>
+									<td class="price-cell">₱<?= number_format((float) $cake['price'], 2) ?></td>
+									<td class="muted-copy"><?= e(date('M j, Y', strtotime($cake['date_added']))) ?></td>
+									<td>
+										<div class="table-actions">
+											<button type="button" class="btn btn-edit btn-sm" data-bs-toggle="modal" data-bs-target="#cakeModal" data-form-mode="edit" data-id="<?= (int) $cake['id'] ?>" data-name="<?= e($cake['cake_name']) ?>" data-description="<?= e($cake['description']) ?>" data-price="<?= e($cake['price']) ?>" data-season="<?= e($cake['season']) ?>">Edit</button>
+											<form method="post" onsubmit="return confirm('Delete this cake? This cannot be undone.');">
+												<input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= (int) $cake['id'] ?>">
+												<button class="btn btn-delete btn-sm" type="submit">Delete</button>
+											</form>
+										</div>
+									</td>
+								</tr>
+							<?php endwhile; ?>
+						<?php else: ?>
+							<tr>
+								<td colspan="5" class="empty-state"><span>♡</span><strong>Your cake case is empty</strong><small>Add your first cake to show it on the storefront.</small></td>
+							</tr>
+						<?php endif; ?>
 					</tbody>
 				</table>
 			</div>
 		</div>
 	</section>
 </main>
+<?php mysqli_free_result($result); ?>
 
 <div class="modal fade" id="cakeModal" tabindex="-1" aria-labelledby="cakeModalTitle" aria-hidden="true">
-	<div class="modal-dialog modal-dialog-centered"><div class="modal-content cake-modal">
-		<form method="post" enctype="multipart/form-data">
-			<input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="save"><input type="hidden" name="id" id="cakeId">
-			<div class="modal-header"><div><div class="auth-eyebrow">THE CAKE CASE</div><h2 class="modal-title" id="cakeModalTitle">Add a cake</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-			<div class="modal-body form-stack">
-				<label>Cake name<input class="form-control" id="cakeName" name="cake_name" maxlength="120" required></label>
-				<label>Description<textarea class="form-control" id="cakeDescription" name="description" rows="3" maxlength="2000" required></textarea></label>
-				<div class="form-row"><label>Price (₱)<input class="form-control" id="cakePrice" type="number" name="price" min="0" max="9999999" step="0.01" required></label>
-					<label>Season<select class="form-select" id="cakeSeason" name="season" required><?php foreach ($seasons as $season): ?><option value="<?= e($season) ?>"><?= e($season) ?></option><?php endforeach; ?></select></label></div>
-				<label>Cake image <span class="field-hint" id="imageHint">JPG, PNG, GIF or WEBP · max 5 MB</span><input class="form-control" id="cakeImage" type="file" name="cake_image" accept="image/jpeg,image/png,image/gif,image/webp"></label>
-			</div>
-			<div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-rose" id="cakeSubmit">Add cake</button></div>
-		</form>
-	</div></div>
+	<div class="modal-dialog modal-dialog-centered">
+		<div class="modal-content cake-modal">
+			<form method="post" enctype="multipart/form-data">
+				<input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="save"><input type="hidden" name="id" id="cakeId">
+				<div class="modal-header">
+					<div>
+						<div class="auth-eyebrow">THE CAKE CASE</div>
+						<h2 class="modal-title" id="cakeModalTitle">Add a cake</h2>
+					</div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<div class="modal-body form-stack">
+					<label>Cake name<input class="form-control" id="cakeName" name="cake_name" maxlength="120" required></label>
+					<label>Description<textarea class="form-control" id="cakeDescription" name="description" rows="3" maxlength="2000" required></textarea></label>
+					<div class="form-row"><label>Price (₱)<input class="form-control" id="cakePrice" type="number" name="price" min="0" max="9999999" step="0.01" required></label>
+						<label>Season<select class="form-select" id="cakeSeason" name="season" required><?php foreach ($seasons as $season): ?><option value="<?= e($season) ?>"><?= e($season) ?></option><?php endforeach; ?></select></label>
+					</div>
+					<label>Cake image <span class="field-hint" id="imageHint">JPG, PNG, GIF or WEBP · max 5 MB</span><input class="form-control" id="cakeImage" type="file" name="cake_image" accept="image/jpeg,image/png,image/gif,image/webp"></label>
+				</div>
+				<div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-rose" id="cakeSubmit">Add cake</button></div>
+			</form>
+		</div>
+	</div>
 </div>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

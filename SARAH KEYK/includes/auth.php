@@ -1,4 +1,23 @@
 <?php
+if (session_status() !== PHP_SESSION_ACTIVE) {
+	session_start();
+}
+
+$appRoot = realpath(__DIR__ . '/..');
+$documentRoot = isset($_SERVER['DOCUMENT_ROOT']) ? realpath($_SERVER['DOCUMENT_ROOT']) : false;
+$baseUrl = '';
+if ($appRoot && $documentRoot && strpos($appRoot, $documentRoot) === 0) {
+	$baseUrl = str_replace('\\', '/', substr($appRoot, strlen($documentRoot)));
+}
+if (!defined('BASE_URL')) {
+	define('BASE_URL', rtrim($baseUrl, '/'));
+}
+
+function app_url(string $path = ''): string
+{
+	return BASE_URL . ($path !== '' ? '/' . ltrim($path, '/') : '/');
+}
+
 require_once __DIR__ . '/../config/database.php';
 
 function e($value): string

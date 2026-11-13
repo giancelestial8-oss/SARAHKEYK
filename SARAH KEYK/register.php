@@ -23,20 +23,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if ($password !== $confirmPassword) $errors[] = 'Passwords do not match.';
 
 	if (!$errors) {
+		$lockAcquired = false;
 		try {
 			// The first account is the initial administrator; later sign-ups are regular accounts.
-			$pdo->query("SELECT GET_LOCK('sarahkeyk_first_admin', 5)");
-			$userCount = (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
+			$lockResult = mysqli_query($db, "SELECT GET_LOCK('sarahkeyk_first_admin', 5)");
+			$lockRow = mysqli_fetch_row($lockResult);
+			mysqli_free_result($lockResult);
+			$lockAcquired = isset($lockRow[0]) && (int) $lockRow[0] === 1;
+			if (!$lockAcquired) {
+				throw new RuntimeException('Could not create your account. Please try again.');
+			}
+
+			$countResult = mysqli_query($db, 'SELECT COUNT(*) FROM users');
+			$countRow = mysqli_fetch_row($countResult);
+			mysqli_free_result($countResult);
+			$userCount = (int) $countRow[0];
 			$role = $userCount === 0 ? 'admin' : 'customer';
-			$statement = $pdo->prepare('INSERT INTO users (full_name, username, email, password, role) VALUES (?, ?, ?, ?, ?)');
-			$statement->execute([$fullName, $username, $email, password_hash($password, PASSWORD_DEFAULT), $role]);
-			$pdo->query("SELECT RELEASE_LOCK('sarahkeyk_first_admin')");
+			$hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+			$statement = mysqli_prepare($db, 'INSERT INTO users (full_name, username, email, password, role) VALUES (?, ?, ?, ?, ?)');
+			mysqli_stmt_bind_param($statement, 'sssss', $fullName, $username, $email, $hashedPassword, $role);
+			mysqli_stmt_execute($statement);
+			mysqli_stmt_close($statement);
+			mysqli_query($db, "SELECT RELEASE_LOCK('sarahkeyk_first_admin')");
+			$lockAcquired = false;
 			set_flash('success', $role === 'admin' ? 'Your account is ready. You are the first administrator.' : 'Your account has been created. Please log in.');
 			header('Location: ' . app_url('login.php'));
 			exit;
-		} catch (PDOException $exception) {
-			try { $pdo->query("SELECT RELEASE_LOCK('sarahkeyk_first_admin')"); } catch (PDOException $ignored) {}
-			if ($exception->getCode() === '23000') {
+		} catch (RuntimeException $exception) {
+			$errors[] = $exception->getMessage();
+		} catch (mysqli_sql_exception $exception) {
+			if ($lockAcquired) {
+				mysqli_query($db, "SELECT RELEASE_LOCK('sarahkeyk_first_admin')");
+			}
+			if ($exception->getCode() === 1062) {
 				$errors[] = 'That username or email is already registered.';
 			} else {
 				$errors[] = 'We could not create your account. Please try again.';

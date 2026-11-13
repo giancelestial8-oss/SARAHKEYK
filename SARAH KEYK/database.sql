@@ -1,3 +1,7 @@
+CREATE DATABASE IF NOT EXISTS sarahkeyk_db
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
 USE sarahkeyk_db;
 
 CREATE TABLE IF NOT EXISTS users (

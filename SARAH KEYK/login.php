@@ -12,9 +12,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	verify_csrf();
 	$username = trim($_POST['username'] ?? '');
 	$password = $_POST['password'] ?? '';
-	$statement = $pdo->prepare('SELECT id, full_name, username, email, password, role FROM users WHERE username = ? LIMIT 1');
-	$statement->execute([$username]);
-	$user = $statement->fetch();
+	$statement = mysqli_prepare($db, 'SELECT id, full_name, username, email, password, role FROM users WHERE username = ? LIMIT 1');
+	mysqli_stmt_bind_param($statement, 's', $username);
+	mysqli_stmt_execute($statement);
+	$result = mysqli_stmt_get_result($statement);
+	$user = mysqli_fetch_assoc($result);
+	mysqli_free_result($result);
+	mysqli_stmt_close($statement);
 
 	if ($user && password_verify($password, $user['password'])) {
 		session_regenerate_id(true);

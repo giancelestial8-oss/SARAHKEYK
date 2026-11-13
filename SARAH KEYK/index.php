@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/includes/auth.php';
-$cakes = $pdo->query('SELECT id, cake_name, description, price, season, cake_image FROM cakes ORDER BY date_added DESC, id DESC')->fetchAll();
+$result = mysqli_query($db, 'SELECT id, cake_name, description, price, season, cake_image FROM cakes ORDER BY date_added DESC, id DESC');
+$cakes = mysqli_fetch_all($result, MYSQLI_ASSOC);
+mysqli_free_result($result);
 $pageTitle = 'SarahKeyk — Cakes made with love';
 require __DIR__ . '/includes/header.php';
 ?>
