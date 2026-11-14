@@ -5,6 +5,51 @@ if (!isset($_SESSION['user_id'])) {
     header("Location: index.php");
     exit;
 }
+
+$page = $_GET['page'] ?? 'home';
+$dashboard_stats = [
+    'total_sales' => 0,
+    'total_orders' => 0,
+    'pending_orders' => 0,
+    'active_cakes' => 0,
+    'low_stock' => 0,
+    'customers' => 0
+];
+$recent_orders = [];
+
+if ($page === 'home') {
+    require_once __DIR__ . '/config/db.php';
+
+    $stats_result = $conn->query("
+        SELECT
+            (SELECT COALESCE(SUM(total), 0) FROM orders WHERE status = 'Completed') AS total_sales,
+            (SELECT COUNT(*) FROM orders) AS total_orders,
+            (SELECT COUNT(*) FROM orders WHERE status = 'Pending') AS pending_orders,
+            (SELECT COUNT(*) FROM inventory WHERE category = 'Finished Cakes' AND stock > 0) AS active_cakes,
+            (SELECT COUNT(*) FROM inventory WHERE stock < 5) AS low_stock,
+            (SELECT COUNT(*) FROM customers) AS customers
+    ");
+    if (!$stats_result) {
+        die('Unable to load dashboard summary.');
+    }
+    $dashboard_stats = $stats_result->fetch_assoc();
+    $stats_result->free();
+
+    $orders_result = $conn->query("
+        SELECT o.id, o.cake_details, o.status, o.total, c.name AS customer_name
+        FROM orders o
+        LEFT JOIN customers c ON c.id = o.customer_id
+        ORDER BY o.id DESC
+        LIMIT 5
+    ");
+    if (!$orders_result) {
+        die('Unable to load recent orders.');
+    }
+    while ($row = $orders_result->fetch_assoc()) {
+        $recent_orders[] = $row;
+    }
+    $orders_result->free();
+}
 ?>
 
 <!DOCTYPE html>
@@ -42,9 +87,6 @@ if (!isset($_SESSION['user_id'])) {
         <!-- 3. Main Content Area sa Kanan -->
         <main class="flex-1 bg-base-100 p-8 overflow-y-auto">
             <?php
-            // Kunin ang 'page' mula sa URL. Kung walang pinindot, default sa 'home'
-            $page = isset($_GET['page']) ? $_GET['page'] : 'home';
-
             // Piliin kung aling file ang ia-include sa gitna
             switch ($page) {
                 case 'inventory':
@@ -85,11 +127,11 @@ if (!isset($_SESSION['user_id'])) {
                         <!-- Quick Stats Cards (DaisyUI Stats) -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             <!-- Total Sales -->
-                            <div class="card bg-base-100 border border-base-300 shadow-sm p-5 rounded-2xl">
+                            <div class="card bg-base-100 shadow-md p-5 rounded-2xl">
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <p class="text-xs font-semibold uppercase tracking-wider text-base-content/50">Total Sales</p>
-                                        <h3 class="text-2xl font-bold mt-1 text-base-content">₱24,500</h3>
+                                        <h3 class="text-2xl font-bold mt-1 text-base-content">₱<?= number_format((float)$dashboard_stats['total_sales'], 2) ?></h3>
                                     </div>
                                     <div class="w-12 h-12 rounded-xl bg-success/10 text-success flex items-center justify-center">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -99,17 +141,16 @@ if (!isset($_SESSION['user_id'])) {
                                     </div>
                                 </div>
                                 <div class="mt-3 flex items-center gap-1 text-xs text-success font-medium">
-                                    <span>+12%</span>
-                                    <span class="text-base-content/50">vs nakaraang linggo</span>
+                                    <span class="text-base-content/50">Completed orders</span>
                                 </div>
                             </div>
 
                             <!-- Total Orders -->
-                            <div class="card bg-base-100 border border-base-300 shadow-sm p-5 rounded-2xl">
+                            <div class="card bg-base-100 shadow-md p-5 rounded-2xl">
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <p class="text-xs font-semibold uppercase tracking-wider text-base-content/50">Orders</p>
-                                        <h3 class="text-2xl font-bold mt-1 text-base-content">48</h3>
+                                        <h3 class="text-2xl font-bold mt-1 text-base-content"><?= (int)$dashboard_stats['total_orders'] ?></h3>
                                     </div>
                                     <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -120,16 +161,16 @@ if (!isset($_SESSION['user_id'])) {
                                     </div>
                                 </div>
                                 <div class="mt-3 flex items-center gap-1 text-xs text-base-content/60 font-medium">
-                                    <span>5 ang naghihintay</span>
+                                    <span><?= (int)$dashboard_stats['pending_orders'] ?> ang naghihintay</span>
                                 </div>
                             </div>
 
                             <!-- Inventory / Stocks -->
-                            <div class="card bg-base-100 border border-base-300 shadow-sm p-5 rounded-2xl">
+                            <div class="card bg-base-100 shadow-md p-5 rounded-2xl">
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <p class="text-xs font-semibold uppercase tracking-wider text-base-content/50">Active Cakes</p>
-                                        <h3 class="text-2xl font-bold mt-1 text-base-content">15</h3>
+                                        <h3 class="text-2xl font-bold mt-1 text-base-content"><?= (int)$dashboard_stats['active_cakes'] ?></h3>
                                     </div>
                                     <div class="w-12 h-12 rounded-xl bg-warning/10 text-warning flex items-center justify-center">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -138,16 +179,16 @@ if (!isset($_SESSION['user_id'])) {
                                     </div>
                                 </div>
                                 <div class="mt-3 flex items-center gap-1 text-xs text-warning font-medium">
-                                    <span>Mababang stock: 2 items</span>
+                                    <span>Mababang stock: <?= (int)$dashboard_stats['low_stock'] ?> items</span>
                                 </div>
                             </div>
 
                             <!-- Customers -->
-                            <div class="card bg-base-100 border border-base-300 shadow-sm p-5 rounded-2xl">
+                            <div class="card bg-base-100 shadow-md p-5 rounded-2xl">
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <p class="text-xs font-semibold uppercase tracking-wider text-base-content/50">Customers</p>
-                                        <h3 class="text-2xl font-bold mt-1 text-base-content">128</h3>
+                                        <h3 class="text-2xl font-bold mt-1 text-base-content"><?= (int)$dashboard_stats['customers'] ?></h3>
                                     </div>
                                     <div class="w-12 h-12 rounded-xl bg-info/10 text-info flex items-center justify-center">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -159,13 +200,13 @@ if (!isset($_SESSION['user_id'])) {
                                     </div>
                                 </div>
                                 <div class="mt-3 flex items-center gap-1 text-xs text-info font-medium">
-                                    <span>+4 ngayong linggo</span>
+                                    <span>Registered customers</span>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Recent Orders Section -->
-                        <div class="card bg-base-100 border border-base-300 shadow-sm p-6 rounded-2xl">
+                        <div class="card bg-base-100 shadow-md p-6 rounded-2xl">
                             <div class="flex items-center justify-between mb-4">
                                 <h3 class="text-lg font-bold text-base-content">Recent Orders</h3>
                                 <a href="dashboard.php?page=orders" class="text-sm font-semibold text-primary hover:underline">Tingnan lahat</a>
@@ -183,27 +224,30 @@ if (!isset($_SESSION['user_id'])) {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <tr>
-                                            <td class="font-medium">#SK-1048</td>
-                                            <td>Maria Santos</td>
-                                            <td>Chocolate Fudge Cake (8")</td>
-                                            <td><span class="badge badge-success badge-sm text-white">Completed</span></td>
-                                            <td>₱1,200</td>
-                                        </tr>
-                                        <tr>
-                                            <td class="font-medium">#SK-1049</td>
-                                            <td>Juan Dela Cruz</td>
-                                            <td>Custom Birthday Theme Cake</td>
-                                            <td><span class="badge badge-warning badge-sm">Processing</span></td>
-                                            <td>₱2,500</td>
-                                        </tr>
-                                        <tr>
-                                            <td class="font-medium">#SK-1050</td>
-                                            <td>Ana Reyes</td>
-                                            <td>Red Velvet Cupcakes (Box of 6)</td>
-                                            <td><span class="badge badge-info badge-sm text-white">Pending</span></td>
-                                            <td>₱450</td>
-                                        </tr>
+                                        <?php if (empty($recent_orders)): ?>
+                                            <tr>
+                                                <td colspan="5" class="text-center text-base-content/60">Wala pang orders.</td>
+                                            </tr>
+                                        <?php else: ?>
+                                            <?php foreach ($recent_orders as $order): ?>
+                                                <?php
+                                                $status_classes = [
+                                                    'Pending' => 'badge-info',
+                                                    'Processing' => 'badge-warning',
+                                                    'Completed' => 'badge-success',
+                                                    'Cancelled' => 'badge-error'
+                                                ];
+                                                $badge_class = $status_classes[$order['status']] ?? 'badge-ghost';
+                                                ?>
+                                                <tr>
+                                                    <td class="font-medium">#SK-<?= str_pad((string)$order['id'], 4, '0', STR_PAD_LEFT) ?></td>
+                                                    <td><?= htmlspecialchars($order['customer_name'] ?? 'Customer removed', ENT_QUOTES, 'UTF-8') ?></td>
+                                                    <td><?= htmlspecialchars($order['cake_details'], ENT_QUOTES, 'UTF-8') ?></td>
+                                                    <td><span class="badge <?= $badge_class ?> badge-sm"><?= htmlspecialchars($order['status'], ENT_QUOTES, 'UTF-8') ?></span></td>
+                                                    <td>₱<?= number_format((float)$order['total'], 2) ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
                                     </tbody>
                                 </table>
                             </div>

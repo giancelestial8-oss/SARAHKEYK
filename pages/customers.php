@@ -1,133 +1,188 @@
-<!DOCTYPE html>
-<html lang="en">
+<?php
+require_once __DIR__ . '/../config/db.php';
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
+$customers = [];
+$result = $conn->query("
+    SELECT c.id, c.name, c.phone, c.email, c.address,
+           COUNT(o.id) AS total_orders, COALESCE(SUM(o.total), 0) AS total_spent
+    FROM customers c
+    LEFT JOIN orders o ON o.customer_id = c.id
+    GROUP BY c.id, c.name, c.phone, c.email, c.address
+    ORDER BY c.id DESC
+");
+if (!$result) {
+    die('Unable to load customers.');
+}
+while ($row = $result->fetch_assoc()) {
+    $customers[] = $row;
+}
+$result->free();
 
-<body>
-    <!-- Customers Management Page -->
-    <div class="space-y-6">
-
-        <!-- Header -->
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-                <h1 class="text-2xl font-extrabold tracking-tight text-base-content">Customers Directory</h1>
-                <p class="text-sm text-base-content/60 mt-1">Listahan ng mga kliyente at kanilang order history sa SarahKeyk.</p>
-            </div>
-            <button onclick="document.getElementById('add_customer_modal').showModal()" class="btn btn-primary rounded-xl gap-2 shadow-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <line x1="19" x2="19" y1="8" y2="14" />
-                    <line x1="22" x2="16" y1="11" y2="11" />
-                </svg>
-                Add Customer
-            </button>
+$customer_message = $_SESSION['customer_message'] ?? '';
+$customer_success = $_SESSION['customer_success'] ?? false;
+unset($_SESSION['customer_message'], $_SESSION['customer_success']);
+?>
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-extrabold tracking-tight text-base-content">Customers Directory</h1>
+            <p class="text-sm text-base-content/60 mt-1">Listahan ng mga kliyente at kanilang order history sa SarahKeyk.</p>
         </div>
-
-        <!-- Customers Table Card -->
-        <div class="card bg-base-100 border border-base-300 shadow-sm p-6 rounded-2xl">
-
-            <div class="flex items-center justify-between mb-6">
-                <input type="text" placeholder="Maghanap ng pangalan o numero..." class="input input-bordered w-full sm:w-80 rounded-xl text-sm" />
-            </div>
-
-            <div class="overflow-x-auto">
-                <table class="table table-zebra w-full">
-                    <thead>
-                        <tr>
-                            <th>Customer</th>
-                            <th>Contact Number</th>
-                            <th>Address</th>
-                            <th>Total Orders</th>
-                            <th>Total Spent</th>
-                            <th class="text-center">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>
-                                <div class="flex items-center gap-3">
-                                    <div class="avatar placeholder">
-                                        <div class="bg-primary/15 text-primary w-9 rounded-full font-bold text-xs">MS</div>
-                                    </div>
-                                    <div>
-                                        <div class="font-bold">Maria Santos</div>
-                                        <div class="text-xs text-base-content/60">maria.santos@email.com</div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>0917-555-0192</td>
-                            <td>Brgy. Libid, Binangonan, Rizal</td>
-                            <td>8 Orders</td>
-                            <td class="font-semibold">₱9,450.00</td>
-                            <td class="text-center">
-                                <button class="btn btn-ghost btn-xs text-info">Edit</button>
-                                <button class="btn btn-ghost btn-xs text-error">Remove</button>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <div class="flex items-center gap-3">
-                                    <div class="avatar placeholder">
-                                        <div class="bg-secondary/15 text-secondary w-9 rounded-full font-bold text-xs">JD</div>
-                                    </div>
-                                    <div>
-                                        <div class="font-bold">Juan Dela Cruz</div>
-                                        <div class="text-xs text-base-content/60">juandelacruz@email.com</div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>0920-888-3411</td>
-                            <td>Brgy. Calumpang, Binangonan, Rizal</td>
-                            <td>3 Orders</td>
-                            <td class="font-semibold">₱4,100.00</td>
-                            <td class="text-center">
-                                <button class="btn btn-ghost btn-xs text-info">Edit</button>
-                                <button class="btn btn-ghost btn-xs text-error">Remove</button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <button onclick="document.getElementById('add_customer_modal').showModal()" class="btn btn-primary rounded-xl gap-2 shadow-sm">
+            Add Customer
+        </button>
     </div>
 
-    <!-- Add Customer Modal -->
-    <dialog id="add_customer_modal" class="modal">
-        <div class="modal-box rounded-2xl">
-            <h3 class="font-bold text-lg">Add New Customer</h3>
+    <?php if ($customer_message !== ''): ?>
+        <div class="alert <?= $customer_success ? 'alert-success' : 'alert-error' ?>" role="alert">
+            <span><?= htmlspecialchars($customer_message, ENT_QUOTES, 'UTF-8') ?></span>
+        </div>
+    <?php endif; ?>
+
+    <div class="card bg-base-100 shadow-md p-6 rounded-2xl">
+        <div class="mb-6">
+            <input type="text" placeholder="Maghanap ng pangalan o numero..." class="input input-bordered w-full sm:w-80 rounded-xl text-sm" />
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table table-zebra w-full">
+                <thead>
+                    <tr>
+                        <th>Customer</th>
+                        <th>Contact Number</th>
+                        <th>Address</th>
+                        <th>Total Orders</th>
+                        <th>Total Spent</th>
+                        <th class="text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($customers)): ?>
+                        <tr><td colspan="6" class="text-center text-base-content/60">Wala pang customers.</td></tr>
+                    <?php else: ?>
+                        <?php foreach ($customers as $customer): ?>
+                            <?php $initials = strtoupper(substr($customer['name'], 0, 1)); ?>
+                            <tr>
+                                <td>
+                                    <div class="flex items-center gap-3">
+                                        <div class="avatar placeholder">
+                                            <div class="bg-primary/15 text-primary w-9 rounded-full font-bold text-xs">
+                                                <span><?= htmlspecialchars($initials, ENT_QUOTES, 'UTF-8') ?></span>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="font-bold"><?= htmlspecialchars($customer['name'], ENT_QUOTES, 'UTF-8') ?></div>
+                                            <div class="text-xs text-base-content/60"><?= htmlspecialchars($customer['email'] ?? '', ENT_QUOTES, 'UTF-8') ?></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><?= htmlspecialchars($customer['phone'], ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><?= htmlspecialchars($customer['address'], ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><?= (int)$customer['total_orders'] ?> Orders</td>
+                                <td class="font-semibold">₱<?= number_format((float)$customer['total_spent'], 2) ?></td>
+                                <td class="text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button
+                                            type="button"
+                                            class="btn btn-ghost btn-xs text-info edit-customer"
+                                            data-id="<?= (int)$customer['id'] ?>"
+                                            data-name="<?= htmlspecialchars($customer['name'], ENT_QUOTES, 'UTF-8') ?>"
+                                            data-phone="<?= htmlspecialchars($customer['phone'], ENT_QUOTES, 'UTF-8') ?>"
+                                            data-email="<?= htmlspecialchars($customer['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                            data-address="<?= htmlspecialchars($customer['address'], ENT_QUOTES, 'UTF-8') ?>">
+                                            Edit
+                                        </button>
+                                        <form method="post" action="actions/customer-process.php" onsubmit="return confirm('Remove this customer?');">
+                                            <input type="hidden" name="action" value="delete_customer">
+                                            <input type="hidden" name="customer_id" value="<?= (int)$customer['id'] ?>">
+                                            <button type="submit" class="btn btn-ghost btn-xs text-error">Remove</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<dialog id="add_customer_modal" class="modal">
+    <div class="modal-box rounded-2xl">
+        <h3 class="font-bold text-lg">Add New Customer</h3>
+        <form method="post" action="actions/customer-process.php">
+            <input type="hidden" name="action" value="add_customer">
             <div class="py-4 space-y-4">
                 <div class="form-control">
                     <label class="label"><span class="label-text font-medium">Full Name</span></label>
-                    <input type="text" placeholder="Juan Dela Cruz" class="input input-bordered rounded-xl w-full" />
+                    <input type="text" name="name" placeholder="Juan Dela Cruz" class="input input-bordered rounded-xl w-full" required>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div class="form-control">
                         <label class="label"><span class="label-text font-medium">Contact Number</span></label>
-                        <input type="text" placeholder="09XX-XXX-XXXX" class="input input-bordered rounded-xl w-full" />
+                        <input type="text" name="phone" placeholder="09XX-XXX-XXXX" class="input input-bordered rounded-xl w-full">
                     </div>
                     <div class="form-control">
                         <label class="label"><span class="label-text font-medium">Email (Optional)</span></label>
-                        <input type="email" placeholder="email@example.com" class="input input-bordered rounded-xl w-full" />
+                        <input type="email" name="email" placeholder="email@example.com" class="input input-bordered rounded-xl w-full">
                     </div>
                 </div>
                 <div class="form-control">
                     <label class="label"><span class="label-text font-medium">Delivery Address</span></label>
-                    <textarea class="textarea textarea-bordered rounded-xl w-full" placeholder="House No., Street, Barangay, Municipality"></textarea>
+                    <textarea name="address" class="textarea textarea-bordered rounded-xl w-full" placeholder="House No., Street, Barangay, Municipality"></textarea>
                 </div>
             </div>
             <div class="modal-action">
-                <form method="dialog" class="flex gap-2">
-                    <button class="btn btn-ghost rounded-xl">Cancel</button>
-                    <button class="btn btn-primary rounded-xl">Save Customer</button>
-                </form>
+                <button type="button" class="btn btn-ghost rounded-xl" onclick="document.getElementById('add_customer_modal').close()">Cancel</button>
+                <button type="submit" class="btn btn-primary rounded-xl">Save Customer</button>
             </div>
-        </div>
-    </dialog>
-</body>
+        </form>
+    </div>
+</dialog>
 
-</html>
+<dialog id="edit_customer_modal" class="modal">
+    <div class="modal-box rounded-2xl">
+        <h3 class="font-bold text-lg">Edit Customer</h3>
+        <form method="post" action="actions/customer-process.php">
+            <input type="hidden" name="action" value="update_customer">
+            <input type="hidden" name="customer_id" id="edit_customer_id">
+            <div class="py-4 space-y-4">
+                <div class="form-control">
+                    <label class="label"><span class="label-text font-medium">Full Name</span></label>
+                    <input type="text" name="name" id="edit_customer_name" class="input input-bordered rounded-xl w-full" required>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-control">
+                        <label class="label"><span class="label-text font-medium">Contact Number</span></label>
+                        <input type="text" name="phone" id="edit_customer_phone" class="input input-bordered rounded-xl w-full">
+                    </div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text font-medium">Email (Optional)</span></label>
+                        <input type="email" name="email" id="edit_customer_email" class="input input-bordered rounded-xl w-full">
+                    </div>
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text font-medium">Delivery Address</span></label>
+                    <textarea name="address" id="edit_customer_address" class="textarea textarea-bordered rounded-xl w-full"></textarea>
+                </div>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost rounded-xl" onclick="document.getElementById('edit_customer_modal').close()">Cancel</button>
+                <button type="submit" class="btn btn-primary rounded-xl">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<script>
+    document.querySelectorAll('.edit-customer').forEach(function (button) {
+        button.addEventListener('click', function () {
+            document.getElementById('edit_customer_id').value = button.dataset.id;
+            document.getElementById('edit_customer_name').value = button.dataset.name;
+            document.getElementById('edit_customer_phone').value = button.dataset.phone;
+            document.getElementById('edit_customer_email').value = button.dataset.email;
+            document.getElementById('edit_customer_address').value = button.dataset.address;
+            document.getElementById('edit_customer_modal').showModal();
+        });
+    });
+</script>
