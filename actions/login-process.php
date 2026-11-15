@@ -58,6 +58,8 @@ if (isset($_POST['login_btn'])) {
         // 18. Error kapag may naiwang blangko
         $error = "Paki-fill up lahat ng fields.";
     }
+
+    $_SESSION['error'] = $error;
 }
 
 // Opsyonal: Kung sakaling direktang puntahan ang file na ito nang hindi nag-a-submit, ibalik sa index.php
